@@ -30,3 +30,6 @@
 - Implementar y probar el backend; conectar frontend y desplegar.
 
 **Estado:** especificación técnica únicamente. No procesa ni descarga videos reales todavía.
+
+## Proveedor elegido (9 noviembre 2026)
+Oracle Cloud Always Free como primera opción de prueba, sujeto a registro, verificación, disponibilidad de instancia ARM y cuotas. Mantener GitHub Pages para frontend. No existe todavía servidor desplegado ni conexión API; no afirmar que se generan clips reales. No solicitar credenciales ni tarjetas en el chat. Siguiente paso: usuario crea cuenta desde sitio oficial y confirma que llegó a la consola; después se prepara la instancia y se despliega el backend.
