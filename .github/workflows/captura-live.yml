@@ -1,0 +1,51 @@
+name: Captura live - prueba
+on:
+  workflow_dispatch:
+    inputs:
+      live_url:
+        description: "URL del live"
+        required: true
+        default: "https://www.youtube.com/live/DxgDeW-gIcU"
+jobs:
+  captura:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar ffmpeg y yt-dlp
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install -q yt-dlp
+          yt-dlp --version
+          ffmpeg -version | head -1
+      - name: Ver formatos y grabar 60s del live en curso
+        run: |
+          mkdir -p out
+          echo "URL: ${{ inputs.live_url }}" > out/resultado.txt
+          yt-dlp -F "${{ inputs.live_url }}" 2>&1 | tee out/formatos.txt || echo "FORMATOS_FALLO" >> out/resultado.txt
+          STREAM_URL=$(yt-dlp -g -f "best[height<=720]" "${{ inputs.live_url }}" 2>out/yt-dlp-error.txt || true)
+          echo "STREAM_URL_OBTENIDA: $([ -n "$STREAM_URL" ] && echo SI || echo NO)" >> out/resultado.txt
+          cat out/yt-dlp-error.txt >> out/resultado.txt || true
+          if [ -n "$STREAM_URL" ]; then
+            timeout 75 ffmpeg -y -v error -t 60 -i "$STREAM_URL" -c copy out/live-segmento-60s.mp4 || echo "FFMPEG_SALIDA=$?" >> out/resultado.txt
+            ffprobe -v error -show_entries format=duration,size -show_entries stream=width,height,codec_name -of default=noprint_wrappers=1 out/live-segmento-60s.mp4 2>&1 | tee -a out/resultado.txt || true
+          else
+            echo "SIN_STREAM_URL: YouTube no entrego el flujo" >> out/resultado.txt
+          fi
+      - name: Cortar clip vertical 30s si hay video
+        run: |
+          if [ -f out/live-segmento-60s.mp4 ]; then
+            ffmpeg -y -v error -ss 0 -t 30 -i out/live-segmento-60s.mp4 -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:v libx264 -preset veryfast -crf 20 -c:a aac -b:a 128k -movflags +faststart out/clip-30s-1080x1920.mp4 || echo "CORTE_FALLO" >> out/resultado.txt
+            ffprobe -v error -show_entries format=duration -show_entries stream=width,height,codec_name -of default=noprint_wrappers=1 out/clip-30s-1080x1920.mp4 2>&1 | tee -a out/resultado.txt || true
+          else
+            echo "SIN_VIDEO: no se pudo grabar el live" >> out/resultado.txt
+          fi
+          ls -lh out
+          cat out/resultado.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: captura-live-prueba
+          path: out/
+          if-no-files-found: error
+          retention-days: 7
